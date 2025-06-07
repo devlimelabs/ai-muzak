@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/app/lib/auth'
 import SpotifyAPI, { SpotifyTrack } from '@/app/lib/spotify'
 import { analyzeMood } from '@/app/lib/openai'
-import { db } from '@/app/lib/firebase'
+import { db, isFirebaseConfigured } from '@/app/lib/firebase'
 import { doc, getDoc, collection, addDoc } from 'firebase/firestore'
 
 export async function POST(request: NextRequest) {
@@ -21,10 +21,17 @@ export async function POST(request: NextRequest) {
 
     const spotify = new SpotifyAPI(session.accessToken)
     
-    // Get user data from Firestore
-    const userDoc = await getDoc(doc(db, 'users', session.user.email))
-    const userData = userDoc.data()
-    const userGenres = userData?.topGenres || []
+    // Get user data from Firestore if available
+    let userGenres: string[] = []
+    if (isFirebaseConfigured && db) {
+      try {
+        const userDoc = await getDoc(doc(db, 'users', session.user.email))
+        const userData = userDoc.data()
+        userGenres = userData?.topGenres || []
+      } catch (error) {
+        console.warn('Failed to fetch user data from Firestore:', error)
+      }
+    }
     
     // Analyze mood with OpenAI
     const moodAnalysis = await analyzeMood(prompt, userGenres)
@@ -148,7 +155,7 @@ export async function POST(request: NextRequest) {
     const trackUris = finalTracks.map(track => track.uri)
     await spotify.addTracksToPlaylist(playlist.id, trackUris)
     
-    // Save to Firestore
+    // Prepare playlist data
     const playlistData = {
       userId: session.user.email,
       spotifyPlaylistId: playlist.id,
@@ -159,13 +166,22 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
     }
     
-    const docRef = await addDoc(collection(db, 'playlists'), playlistData)
+    // Save to Firestore if configured
+    let docId = 'temp-' + Date.now()
+    if (isFirebaseConfigured && db) {
+      try {
+        const docRef = await addDoc(collection(db, 'playlists'), playlistData)
+        docId = docRef.id
+      } catch (error) {
+        console.warn('Failed to save playlist to Firestore:', error)
+      }
+    }
     
     // Get full playlist data to return
     const fullPlaylist = await spotify.getPlaylist(playlist.id)
     
     return NextResponse.json({
-      id: docRef.id,
+      id: docId,
       ...playlistData,
       ...fullPlaylist,
     })

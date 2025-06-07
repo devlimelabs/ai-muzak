@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/app/lib/auth'
 import SpotifyAPI from '@/app/lib/spotify'
-import { db } from '@/app/lib/firebase'
+import { db, isFirebaseConfigured } from '@/app/lib/firebase'
 import { doc, setDoc } from 'firebase/firestore'
 
 export async function POST(request: NextRequest) {
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     // Get Spotify user data
     const spotifyUser = await spotify.getCurrentUser()
     
-    // Save to Firestore (without encryption for MVP)
+    // Prepare user data
     const userData = {
       spotifyId: spotifyUser.id,
       email: session.user.email,
@@ -43,7 +43,12 @@ export async function POST(request: NextRequest) {
       lastSync: new Date().toISOString(),
     }
     
-    await setDoc(doc(db, 'users', session.user.email), userData, { merge: true })
+    // Save to Firestore if configured
+    if (isFirebaseConfigured && db) {
+      await setDoc(doc(db, 'users', session.user.email), userData, { merge: true })
+    } else {
+      console.warn('Firebase not configured - user data not persisted')
+    }
     
     return NextResponse.json({ topGenres, user: userData })
   } catch (error) {
