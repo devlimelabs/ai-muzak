@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #191414;
+    color: white;
+  }
+}
+
+@layer utilities {
+  .gradient-spotify {
+    background: linear-gradient(135deg, #1DB954 0%, #191414 100%);
+  }
+  
+  .gradient-emotion {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+  
+  .text-gradient {
+    background: linear-gradient(to right, #1DB954, #4ade80);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+}
